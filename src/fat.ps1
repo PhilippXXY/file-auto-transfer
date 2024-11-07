@@ -1,14 +1,14 @@
 param(
-    [Parameter(Mandatory=$true)]
-    [string]$s,  # Source directory
+    [Parameter(Mandatory = $true)]
+    [string]$s, # Source directory
     
-    [Parameter(Mandatory=$true)]
-    [string]$t,  # Target directory
+    [Parameter(Mandatory = $true)]
+    [string]$t, # Target directory
     
-    [Parameter(Mandatory=$false)]
-    [string]$f,  # Specific file name
+    [Parameter(Mandatory = $false)]
+    [string]$f, # Specific file name
     
-    [Parameter(Mandatory=$false)]
+    [Parameter(Mandatory = $false)]
     [string]$e   # File extension
 )
 
@@ -34,31 +34,29 @@ function Initialize-Filter {
         if ($extension) {
             $filter += ".$extension"
         }
-    } elseif ($extension) {
+    }
+    elseif ($extension) {
         $filter = "*.$extension"
     }
     return $filter
 }
 
-function Initialize-FileWatcher {
+function Get-FileCount {
     param (
-        [string]$sourceDir,
+        [string]$dir,
         [string]$filter
     )
-    $watcher = New-Object System.IO.FileSystemWatcher   
-    $watcher.Path = $sourceDir
-    $watcher.Filter = $filter   
-    $watcher.IncludeSubdirectories = $true
-    $watcher.EnableRaisingEvents = $true    
-    $watcher.NotifyFilter = [System.IO.NotifyFilters]::FileName, [System.IO.NotifyFilters]::LastWrite
-    return $watcher
+    return (Get-ChildItem -Path $dir -Filter $filter -Recurse -ErrorAction SilentlyContinue).Count
 }
 
 function Register-FileWatcherEvents {
     param (
-        [System.IO.FileSystemWatcher]$watcher
+        [System.IO.FileSystemWatcher]$watcher,
+        [string]$sourceDir,
+        [string]$targetDir
     )
-    $debounceInterval = 1 # seconds
+    Write-Host "Registering file watcher events..."
+    $debounceInterval = 2 # seconds
     $eventTimes = @{}
 
     $action = {
@@ -69,23 +67,89 @@ function Register-FileWatcherEvents {
 
         if ($eventTimes.ContainsKey($path)) {
             $lastEventTime = $eventTimes[$path]
-            if (($timeStamp - $lastEventTime).TotalSeconds -lt $debounceInterval) {
+            if (($timeStamp - $lastEventTime).TotalSeconds -lt $using:debounceInterval) {
                 return
             }
         }
         $eventTimes[$path] = $timeStamp
         Write-Host "The file '$name' was $changeType at $timeStamp"
-    }
-    Register-ObjectEvent $watcher "Created" -Action $action
-    Register-ObjectEvent $watcher "Changed" -Action $action
-}
 
-function Get-FileCount {
+        # Define the target path
+        $targetPath = $path -replace [regex]::Escape($using:sourceDir), [regex]::Escape($using:targetDir)
+        $targetDirPath = Split-Path -Path $targetPath
+
+        # Ensure target directory exists
+        if (-not (Test-Path -Path $targetDirPath)) {
+            New-Item -ItemType Directory -Path $targetDirPath | Out-Null
+            Write-Host "Created target directory: $targetDirPath"
+        }
+
+        # Copy the file
+        try {
+            Copy-Item -Path $path -Destination $targetPath -Force
+            Write-Host "Copied '$name' to target directory at $targetPath."
+        }
+        catch {
+            Write-Error "Failed to copy '$name': $_"
+        }
+    }
+
+    Register-ObjectEvent $watcher "Created" -Action $action | Out-Null
+    Register-ObjectEvent $watcher "Changed" -Action $action | Out-Null
+}
+Function Initialize-FileWatcher {
     param (
-        [string]$dir,
+        [string]$sourceDir,
         [string]$filter
     )
-    return (Get-ChildItem -Path $dir -Filter $filter -Recurse).Count
+
+    # Check if the source directory exists before proceeding
+    if (-not (Test-Path -Path $sourceDir -PathType Container)) {
+        Write-Error "Source directory does not exist: $sourceDir"
+        return
+    }
+
+    # Initialize FileSystemWatcher with only the source directory
+    $watcher = New-Object IO.FileSystemWatcher $sourceDir
+
+    # Set properties
+    $watcher.IncludeSubdirectories = $true
+    $watcher.EnableRaisingEvents = $true
+    $watcher.Filter = $filter  # Set the filter here instead of in the constructor
+
+    $changeAction = {
+        $path = $Event.SourceEventArgs.FullPath
+        $name = $Event.SourceEventArgs.Name
+        $changeType = $Event.SourceEventArgs.ChangeType
+        $timeStamp = $Event.TimeGenerated
+        Write-Host "File $path $changeType at $timeStamp"
+    }
+    
+    # Register the event
+    Register-ObjectEvent $watcher Changed -Action $changeAction
+}
+
+function Handle-FileChange {
+    param (
+        [string]$path,
+        [string]$changeType
+    )
+
+    $name = [System.IO.Path]::GetFileName($path)
+    Write-Host "Handling $changeType event for file: $name"
+
+    # Define the target path
+    $targetPath = $path -replace [regex]::Escape($s), [regex]::Escape($t)
+    $targetDir = Split-Path -Path $targetPath
+
+    # Ensure target directory exists
+    if (-not (Test-Path -Path $targetDir)) {
+        New-Item -ItemType Directory -Path $targetDir | Out-Null
+    }
+
+    # Copy the file
+    Copy-Item -Path $path -Destination $targetPath -Force
+    Write-Host "Copied '$name' to target directory at $targetPath."
 }
 
 function Copy-Files {
@@ -94,15 +158,26 @@ function Copy-Files {
         [string]$targetDir,
         [string]$filter
     )
-    Get-ChildItem -Path $sourceDir -Filter $filter -Recurse | ForEach-Object {
+    Write-Host "Copying files from source to target directory..."
+    Get-ChildItem -Path $sourceDir -Filter $filter -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
         $targetPath = $_.FullName -replace [regex]::Escape($sourceDir), [regex]::Escape($targetDir)
+        $targetDirPath = Split-Path -Path $targetPath
+        if (-not (Test-Path -Path $targetDirPath)) {
+            New-Item -ItemType Directory -Path $targetDirPath | Out-Null
+            Write-Host "Created target directory: $targetDirPath"
+        }
         if ($_.FullName -ne $targetPath) {
-            Copy-Item -Path $_.FullName -Destination $targetPath -Force
+            try {
+                Copy-Item -Path $_.FullName -Destination $targetPath -Force
+                Write-Host "Copied '$( $_.Name )' to target directory."
+            }
+            catch {
+                Write-Error "Failed to copy '$( $_.Name )': $_"
+            }
         }
     }
 }
 
-# Main script execution
 Test-DirectoryExists -dir $s -dirType "Source"
 Test-DirectoryExists -dir $t -dirType "Target"
 
@@ -116,10 +191,13 @@ $filter = Initialize-Filter -fileName $f -extension $e
 $sourceFileCount = Get-FileCount -dir $s -filter $filter
 $targetFileCount = Get-FileCount -dir $t -filter $filter
 Write-Host "Amount of selected files in directories: src[$sourceFileCount] target[$targetFileCount]."
-Write-Host "Target directory contains $targetFileCount files."
 
 Copy-Files -sourceDir $s -targetDir $t -filter $filter
 
-$watcher = Initialize-FileWatcher -sourceDir $s -filter $filter
-Register-FileWatcherEvents -watcher $watcher
+Initialize-FileWatcher -sourceDir $s -filter $filter
 
+# Keep the script running to monitor file changes
+Write-Host "FileWatcher is monitoring changes. Press Ctrl+C to stop the script."
+while ($true) {
+    Wait-Event -Timeout 1
+}
