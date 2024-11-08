@@ -49,6 +49,97 @@ function Get-FileCount {
     return (Get-ChildItem -Path $dir -Filter $filter -Recurse -ErrorAction SilentlyContinue).Count
 }
 
+function Copyy-File {
+    Write-Host
+
+}
+
+function Copy-Files {
+    param (
+        [string]$sourceDir,
+        [string]$targetDir,
+        [string]$filter
+    )
+    Write-Host "Copying files from source to target directory..."
+    Get-ChildItem -Path $sourceDir -Filter $filter -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
+        $targetPath = $_.FullName -replace [regex]::Escape($sourceDir), [regex]::Escape($targetDir)
+        $targetDirPath = Split-Path -Path $targetPath
+        if (-not (Test-Path -Path $targetDirPath)) {
+            New-Item -ItemType Directory -Path $targetDirPath | Out-Null
+            Write-Host "Created target directory: $targetDirPath"
+        }
+        if ($_.FullName -ne $targetPath) {
+            try {
+                Copy-Item -Path $_.FullName -Destination $targetPath -Force
+                Write-Host "Copied '$( $_.Name )' to target directory."
+            }
+            catch {
+                Write-Error "Failed to copy '$( $_.Name )': $_"
+            }
+        }
+    }
+}
+
+function Handle-FileChange {
+    param (
+        [string]$path,
+        [string]$changeType
+    )
+Write-Host "heyha"
+    $name = [System.IO.Path]::GetFileName($path)
+    Write-Host "Handling $changeType event for file: $name"
+
+    # Define the target path
+    $targetPath = $path -replace [regex]::Escape($s), [regex]::Escape($t)
+    $targetDir = Split-Path -Path $targetPath
+
+    # Ensure target directory exists
+    if (-not (Test-Path -Path $targetDir)) {
+        New-Item -ItemType Directory -Path $targetDir | Out-Null
+    }
+
+    # Copy the file
+    Copy-Item -Path $path -Destination $targetPath -Force
+    Write-Host "Copied '$name' to target directory at $targetPath."
+}
+
+Function Initialize-FileWatcher {
+    param (
+        [string]$sourceDir,
+        [string]$filter
+    )
+
+    # Check if the source directory exists before proceeding
+    if (-not (Test-Path -Path $sourceDir -PathType Container)) {
+        Write-Error "Source directory does not exist: $sourceDir"
+        return
+    }
+
+    # Initialize FileSystemWatcher with only the source directory
+    $watcher = New-Object IO.FileSystemWatcher $sourceDir
+
+    # Set properties
+    $watcher.IncludeSubdirectories = $true
+    $watcher.EnableRaisingEvents = $true
+    $watcher.Filter = $filter  # Set the filter here instead of in the constructor
+
+    $changeAction = {
+        $path = $Event.SourceEventArgs.FullPath
+        $name = $Event.SourceEventArgs.Name
+        $changeType = $Event.SourceEventArgs.ChangeType
+        $timeStamp = $Event.TimeGenerated
+        Write-Host "File $path $changeType at $timeStamp"
+        try {
+            Handle-FileChange -path $path -changeType $changeType
+        }
+        catch {
+            Write-Error "Failed to handle file change: $_"
+        }
+    }
+    
+    # Register the event
+    Register-ObjectEvent $watcher Changed -Action $changeAction
+}
 function Register-FileWatcherEvents {
     param (
         [System.IO.FileSystemWatcher]$watcher,
@@ -97,86 +188,8 @@ function Register-FileWatcherEvents {
     Register-ObjectEvent $watcher "Created" -Action $action | Out-Null
     Register-ObjectEvent $watcher "Changed" -Action $action | Out-Null
 }
-Function Initialize-FileWatcher {
-    param (
-        [string]$sourceDir,
-        [string]$filter
-    )
 
-    # Check if the source directory exists before proceeding
-    if (-not (Test-Path -Path $sourceDir -PathType Container)) {
-        Write-Error "Source directory does not exist: $sourceDir"
-        return
-    }
 
-    # Initialize FileSystemWatcher with only the source directory
-    $watcher = New-Object IO.FileSystemWatcher $sourceDir
-
-    # Set properties
-    $watcher.IncludeSubdirectories = $true
-    $watcher.EnableRaisingEvents = $true
-    $watcher.Filter = $filter  # Set the filter here instead of in the constructor
-
-    $changeAction = {
-        $path = $Event.SourceEventArgs.FullPath
-        $name = $Event.SourceEventArgs.Name
-        $changeType = $Event.SourceEventArgs.ChangeType
-        $timeStamp = $Event.TimeGenerated
-        Write-Host "File $path $changeType at $timeStamp"
-    }
-    
-    # Register the event
-    Register-ObjectEvent $watcher Changed -Action $changeAction
-}
-
-function Handle-FileChange {
-    param (
-        [string]$path,
-        [string]$changeType
-    )
-
-    $name = [System.IO.Path]::GetFileName($path)
-    Write-Host "Handling $changeType event for file: $name"
-
-    # Define the target path
-    $targetPath = $path -replace [regex]::Escape($s), [regex]::Escape($t)
-    $targetDir = Split-Path -Path $targetPath
-
-    # Ensure target directory exists
-    if (-not (Test-Path -Path $targetDir)) {
-        New-Item -ItemType Directory -Path $targetDir | Out-Null
-    }
-
-    # Copy the file
-    Copy-Item -Path $path -Destination $targetPath -Force
-    Write-Host "Copied '$name' to target directory at $targetPath."
-}
-
-function Copy-Files {
-    param (
-        [string]$sourceDir,
-        [string]$targetDir,
-        [string]$filter
-    )
-    Write-Host "Copying files from source to target directory..."
-    Get-ChildItem -Path $sourceDir -Filter $filter -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
-        $targetPath = $_.FullName -replace [regex]::Escape($sourceDir), [regex]::Escape($targetDir)
-        $targetDirPath = Split-Path -Path $targetPath
-        if (-not (Test-Path -Path $targetDirPath)) {
-            New-Item -ItemType Directory -Path $targetDirPath | Out-Null
-            Write-Host "Created target directory: $targetDirPath"
-        }
-        if ($_.FullName -ne $targetPath) {
-            try {
-                Copy-Item -Path $_.FullName -Destination $targetPath -Force
-                Write-Host "Copied '$( $_.Name )' to target directory."
-            }
-            catch {
-                Write-Error "Failed to copy '$( $_.Name )': $_"
-            }
-        }
-    }
-}
 
 Test-DirectoryExists -dir $s -dirType "Source"
 Test-DirectoryExists -dir $t -dirType "Target"
