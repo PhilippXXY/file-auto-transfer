@@ -10,8 +10,8 @@
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
   - [Usage](#usage)
-        - [Parameters](#parameters)
-        - [Parameter Details](#parameter-details)
+    - [Parameters](#parameters)
+    - [Parameter Details](#parameter-details)
   - [Notes](#notes)
   - [Troubleshooting](#troubleshooting)
 
@@ -64,7 +64,7 @@ Run the script using PowerShell with the required parameters:
 .\fat.ps1 -s "path\to\source\directory" -t "path\to\target\directory" [-f "filename"] [-e "extension"]
 ```
 
-##### Parameters
+### Parameters
 
 - **Mandatory**
   - ```-s```: Path to the source directory to be monitored.
@@ -73,7 +73,7 @@ Run the script using PowerShell with the required parameters:
   - ```-f```: Specific file name to monitor within the source directory.
   - ```-e```: Specific file extension to monitor within the source directory.
 
-##### Parameter Details
+### Parameter Details
 
 - **Monitor All Files:**
   ```powershell
