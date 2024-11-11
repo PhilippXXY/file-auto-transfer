@@ -1,20 +1,5 @@
 # File Auto Transfer
 
-## Table of Contents
-- [File Auto Transfer](#file-auto-transfer)
-  - [Table of Contents](#table-of-contents)
-  - [Overview](#overview)
-  - [Features](#features)
-  - [Use Cases](#use-cases)
-    - [Example Scenario](#example-scenario)
-  - [Prerequisites](#prerequisites)
-  - [Installation](#installation)
-  - [Usage](#usage)
-    - [Parameters](#parameters)
-    - [Parameter Details](#parameter-details)
-  - [Notes](#notes)
-  - [Troubleshooting](#troubleshooting)
-
 ## Overview
 
 The **File Auto Transfer** script is a PowerShell utility designed to monitor a source directory for any file changes and automatically copy updated files to a target directory. This eliminates the manual overhead of copying and pasting files, streamlining the development process, and reducing the time spent on routine tasks.
@@ -61,7 +46,7 @@ You're developing a Java component and need the generated binary file to be avai
 
 Run the script using PowerShell with the required parameters:
 ```powershell
-.\fat.ps1 -s "path\to\source\directory" -t "path\to\target\directory" [-f "filename"] [-e "extension"]
+.\fat.ps1 -s path\to\source\directory -t path\to\target\directory [-f filename] [-e extension]
 ```
 
 ### Parameters
@@ -77,15 +62,15 @@ Run the script using PowerShell with the required parameters:
 
 - **Monitor All Files:**
   ```powershell
-    .\fat.ps1 -s "C:\Projects\Source" -t "C:\Projects\Target"
+    .\fat.ps1 -s C:\Projects\Source -t C:\Projects\Target
   ```
 - **Monitor Specific Extension:**
   ```powershell
-    .\fat.ps1 -s "C:\Projects\Source" -t "C:\Projects\Target" -e ".extension"
+    .\fat.ps1 -s C:\Projects\Source -t C:\Projects\Target -e .extension
   ```
 - **Monitor Specific File:**
   ```powershell
-   .\fat.ps1 -s "C:\Projects\Source" -t "C:\Projects\Target" -f "file.name"
+   .\fat.ps1 -s C:\Projects\Source -t C:\Projects\Target -f file.name
   ```
 
 ## Notes
