@@ -179,8 +179,6 @@ Copy-Files -sourceDir $s -targetDir $t -filter $filter
 # Initialize the file watcher to monitor changes in the source directory
 Initialize-FileWatcher -sourceDir $s -filter $filter
 
-# Keep the script running to monitor file changes indefinitely
-Write-Host "FileWatcher is monitoring changes. Press Ctrl+C to stop the script."
 while ($true) {
     Wait-Event -Timeout 1
 }
